@@ -20,7 +20,6 @@ input,button,textarea{
   margin-bottom:8px;border-radius:10px;border:none
 }
 textarea{resize:vertical;min-height:80px}
-
 button{cursor:pointer}
 
 .grid{
@@ -34,21 +33,13 @@ button{cursor:pointer}
 .card{background:#2196F3;color:#fff}
 .add{background:#000;color:#fff}
 .delete{background:#e53935;color:#fff}
-.edit{background:#fb8c00;color:#fff}
-
-.admin-tools{display:flex;gap:4px}
-.admin-tools button{width:50%;font-size:14px}
 
 .report-line{
-  display:flex;justify-content:space-between;
-  align-items:center;font-size:15px;margin-bottom:6px
-}
-
-.summary-item{padding:4px 0;font-size:15px}
-
-.delete-small{
-  width:28px!important;height:28px;
-  padding:0;font-size:14px;border-radius:6px
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  font-size:15px;
+  margin-bottom:6px
 }
 
 .bottom-nav{
@@ -65,7 +56,7 @@ button{cursor:pointer}
 
 <h1>☕ Barista POS</h1>
 
-<!-- КАССА -->
+<!-- ===== КАССА ===== -->
 <div class="page active" id="page-pos">
   <section>
     <input type="date" id="date">
@@ -79,54 +70,34 @@ button{cursor:pointer}
   </section>
 </div>
 
-<!-- ОТЧЁТ -->
+<!-- ===== ОТЧЁТ ===== -->
 <div class="page" id="page-report">
   <section>
     <input type="number" id="salary" placeholder="ЗП (например 500)">
-
-    <textarea
-      id="notes"
-      placeholder="📝 Заметки за день"
-      oninput="saveNotes()"
-    ></textarea>
-
     <button class="delete" onclick="clearDay()">🗑 Очистить день</button>
 
     <div id="report"></div>
+
+    <hr>
+    <strong>📝 Заметки за день</strong>
+    <textarea
+      id="notes"
+      placeholder="Введите заметки за день"
+      oninput="saveNotes()"
+    ></textarea>
   </section>
 </div>
 
-<!-- ТОВАРЫ -->
+<!-- ===== ТОВАРЫ ===== -->
 <div class="page" id="page-products">
   <section>
-    <h3>➕ / ✏️ Товар</h3>
-    <input type="hidden" id="productId">
-    <input id="productName" placeholder="Название">
-    <input id="price1" type="number" placeholder="Цена 1">
-    <input id="price2" type="number" placeholder="Цена 2 (необязательно)">
-    <button class="add" onclick="saveProduct()">Сохранить товар</button>
-  </section>
-
-  <section>
-    <h3>➕ / ✏️ Доп. услуга</h3>
-    <input type="hidden" id="extraId">
-    <input id="extraName" placeholder="Название">
-    <input id="extraPrice" type="number" placeholder="Цена">
-    <button class="add" onclick="saveExtra()">Сохранить услугу</button>
-  </section>
-
-  <section>
-    <h3>Список товаров</h3>
-    <div id="productsAdmin"></div>
-  </section>
-
-  <section>
-    <h3>Список доп. услуг</h3>
-    <div id="extrasAdmin"></div>
+    <input id="productName" placeholder="Название товара">
+    <input id="price" type="number" placeholder="Цена">
+    <button class="add" onclick="addProduct()">Сохранить товар</button>
   </section>
 </div>
 
-<!-- НАВИГАЦИЯ -->
+<!-- ===== НАВИГАЦИЯ ===== -->
 <div class="bottom-nav">
   <button onclick="showPage('page-pos')">☕ Касса</button>
   <button onclick="showPage('page-report')">📊 Отчёт</button>
@@ -138,22 +109,29 @@ const dateInput=document.getElementById("date");
 dateInput.value=new Date().toISOString().slice(0,10);
 
 let products=JSON.parse(localStorage.getItem("products"))||[];
-let extras=JSON.parse(localStorage.getItem("extras"))||[];
 let sales=JSON.parse(localStorage.getItem("sales"))||[];
 let notes=JSON.parse(localStorage.getItem("notes"))||{};
 
 let selectedProduct=null;
-let selectedExtras=[];
 
-/* SAVE */
+/* ===== SAVE ===== */
 function save(){
   localStorage.setItem("products",JSON.stringify(products));
-  localStorage.setItem("extras",JSON.stringify(extras));
   localStorage.setItem("sales",JSON.stringify(sales));
   localStorage.setItem("notes",JSON.stringify(notes));
 }
 
-/* NOTES */
+/* ===== NAV ===== */
+function showPage(id){
+  document.querySelectorAll(".page").forEach(p=>p.classList.remove("active"));
+  document.getElementById(id).classList.add("active");
+  renderProducts();
+  renderReport();
+  loadNotes();
+}
+
+/* ===== NOTES ===== */
+const notesInput=document.getElementById("notes");
 function saveNotes(){
   notes[dateInput.value]=notesInput.value;
   save();
@@ -161,104 +139,56 @@ function saveNotes(){
 function loadNotes(){
   notesInput.value=notes[dateInput.value]||"";
 }
-const notesInput=document.getElementById("notes");
 
-/* NAV */
-function showPage(id){
-  document.querySelectorAll(".page").forEach(p=>p.classList.remove("active"));
-  document.getElementById(id).classList.add("active");
-  renderProducts();
-  renderProductsAdmin();
-  renderExtrasAdmin();
-  renderReport();
-  loadNotes();
+/* ===== PRODUCTS ===== */
+function addProduct(){
+  if(!productName.value||!price.value)return;
+  products.push({id:Date.now(),name:productName.value,price:+price.value});
+  productName.value=price.value="";
+  save();renderProducts();
 }
 
-/* PRODUCTS */
-function saveProduct(){
-  const id=productId.value;
-  if(!productName.value||!price1.value)return alert("Введите данные");
-  const prices=price2.value?[+price1.value,+price2.value]:[+price1.value];
-
-  if(id){
-    const p=products.find(p=>p.id==id);
-    p.name=productName.value;p.prices=prices;
-  }else{
-    products.push({id:Date.now(),name:productName.value,prices});
-  }
-
-  productId.value=productName.value=price1.value=price2.value="";
-  save();renderProducts();renderProductsAdmin();
-}
-
-function deleteProduct(id){
-  if(sales.some(s=>s.productId===id))return alert("Товар уже продавался");
-  products=products.filter(p=>p.id!==id);
-  save();renderProducts();renderProductsAdmin();
-}
-
-/* EXTRAS */
-function saveExtra(){
-  if(!extraName.value||!extraPrice.value)return alert("Введите данные");
-  extras.push({id:Date.now(),name:extraName.value,price:+extraPrice.value});
-  extraName.value=extraPrice.value="";
-  save();renderExtrasAdmin();
-}
-
-/* POS */
 function renderProducts(filter=""){
   productsDiv.innerHTML="";
-  products.filter(p=>p.name.toLowerCase().includes(filter.toLowerCase()))
+  products
+    .filter(p=>p.name.toLowerCase().includes(filter.toLowerCase()))
     .forEach(p=>{
       const b=document.createElement("button");
       b.className="product-btn";
       b.innerText=p.name;
-      b.onclick=()=>selectProduct(p);
+      b.onclick=()=>sell(p);
       productsDiv.appendChild(b);
     });
 }
 const productsDiv=document.getElementById("products");
 
-function selectProduct(p){
-  selectedProduct=p;selectedExtras=[];
-  renderExtras();renderPrices();
-}
-
-function renderExtras(){
-  extrasPanel.innerHTML="<strong>Доп. услуги</strong>";
-  extras.forEach(x=>{
-    const b=document.createElement("button");
-    b.innerText=`${x.name} +${x.price}`;
-    b.onclick=()=>{selectedExtras.push(x);renderPrices()};
-    extrasPanel.appendChild(b);
-  });
-}
-
-function renderPrices(){
-  if(!selectedProduct)return;
-  const extraSum=selectedExtras.reduce((s,e)=>s+e.price,0);
-  pricePanel.innerHTML=`<strong>${selectedProduct.name}</strong>`;
-  selectedProduct.prices.forEach(price=>{
-    const total=price+extraSum;
-    pricePanel.innerHTML+=`
-      <button class="cash" onclick="sell(${total},'cash')">${total} грн 💵</button>
-      <button class="card" onclick="sell(${total},'card')">${total} грн 💳</button>
-    `;
-  });
-}
-
-function sell(total,payment){
+/* ===== SELL ===== */
+function sell(p){
   sales.push({
-    id:Date.now(),
     date:dateInput.value,
-    productId:selectedProduct.id,
-    price:total,
-    payment
+    price:p.price
   });
-  save();pricePanel.innerHTML="";renderReport();
+  save();renderReport();
 }
 
-/* REPORT */
+/* ===== REPORT ===== */
+function renderReport(){
+  report.innerHTML="";
+  const day=sales.filter(s=>s.date===dateInput.value);
+  let sum=0;
+  day.forEach(s=>sum+=s.price);
+
+  const base=+salary.value||0;
+  const percent=sum*0.03;
+
+  report.innerHTML=`
+    💰 Касса: ${sum}<br>
+    👤 ЗП: ${base}<br>
+    📈 3%: ${percent.toFixed(2)}<br>
+    <strong>Итог ЗП: ${(base+percent).toFixed(2)}</strong>
+  `;
+}
+
 function clearDay(){
   if(!confirm("Очистить день?"))return;
   sales=sales.filter(s=>s.date!==dateInput.value);
@@ -266,58 +196,9 @@ function clearDay(){
   save();renderReport();loadNotes();
 }
 
-function renderReport(){
-  report.innerHTML="";
-  const day=sales.filter(s=>s.date===dateInput.value);
-  let cash=0,card=0,sum=0;
-
-  day.forEach(s=>{
-    sum+=s.price;
-    s.payment==="cash"?cash+=s.price:card+=s.price;
-    report.innerHTML+=`
-      <div class="report-line">
-        ${s.price} грн • ${s.payment==="cash"?"💵":"💳"}
-      </div>`;
-  });
-
-  const base=+salary.value||0;
-  const percent=sum*0.03;
-  report.innerHTML+=`
-    <hr>
-    💵 Нал: ${cash}<br>
-    💳 Карта: ${card}<br>
-    💰 Касса: ${sum}<br>
-    👤 ЗП: ${base}<br>
-    📈 3%: ${percent.toFixed(2)}<br>
-    <strong>Итог: ${(base+percent).toFixed(2)}</strong>
-  `;
-}
-
-/* ADMIN */
-function renderProductsAdmin(){
-  productsAdmin.innerHTML="";
-  products.forEach(p=>{
-    productsAdmin.innerHTML+=`
-      <div class="report-line">
-        ${p.name}
-        <button class="delete delete-small" onclick="deleteProduct(${p.id})">✖</button>
-      </div>`;
-  });
-}
-
-function renderExtrasAdmin(){
-  extrasAdmin.innerHTML="";
-  extras.forEach(e=>{
-    extrasAdmin.innerHTML+=`
-      <div class="report-line">
-        ${e.name} +${e.price}
-      </div>`;
-  });
-}
-
-/* INIT */
+/* ===== INIT ===== */
 dateInput.onchange=()=>{renderReport();loadNotes()};
-renderProducts();renderProductsAdmin();renderExtrasAdmin();renderReport();loadNotes();
+renderProducts();renderReport();loadNotes();
 </script>
 
 </body>
