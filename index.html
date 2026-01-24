@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Barista POS</title>
+
+<style>
+*{box-sizing:border-box;touch-action:manipulation}
+body{margin:0;padding:10px 10px 80px;font-family:system-ui;background:#f2f2f2}
+h1{text-align:center;margin:8px 0}
+
+.page{display:none}
+.page.active{display:block}
+
+section{background:#fff;padding:12px;margin-bottom:12px;border-radius:12px}
+
+input,button{
+  width:100%;padding:14px;font-size:16px;
+  margin-bottom:8px;border-radius:10px;border:none
+}
+button{cursor:pointer}
+
+.grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(140px,1fr));
+  gap:10px
+}
+
+.product-btn{background:#111;color:#fff;height:70px}
+.cash{background:#4CAF50;color:#fff}
+.card{background:#2196F3;color:#fff}
+.add{background:#000;color:#fff}
+.delete{background:#e53935;color:#fff}
+.edit{background:#fb8c00;color:#fff}
+
+.admin-tools{display:flex;gap:4px}
+.admin-tools button{width:50%;font-size:14px}
+
+.report-line{
+  display:flex;justify-content:space-between;
+  align-items:center;font-size:15px;margin-bottom:6px
+}
+
+.summary-item{padding:4px 0;font-size:15px}
+
+.delete-small{
+  width:28px!important;height:28px;
+  padding:0;font-size:14px;border-radius:6px
+}
+
+.products-image{
+  width:100vw;
+  height:100vh;
+  margin-left:calc(-50vw + 50%);
+  background:url("https://i.ibb.co/nMWZzSvv/photo-2025-11-13-18-17-00.jpg") center center / cover no-repeat;
+  border-radius:0;
+}
+
+
+.bottom-nav{
+  position:fixed;bottom:0;left:0;right:0;
+  display:flex;background:#111
+}
+.bottom-nav button{
+  flex:1;color:#fff;background:none;border-radius:0
+}
+</style>
+</head>
+
+<body>
+
+<h1>☕ Настя Шеф Лучшая</h1>
+
+<!-- КАССА -->
+<div class="page active" id="page-pos">
+  <section>
+    <input type="date" id="date">
+  </section>
+
+  <section>
+    <input placeholder="🔍 Поиск товара" oninput="renderProducts(this.value)">
+    <div id="products" class="grid"></div>
+    <div id="extrasPanel"></div>
+    <div id="pricePanel"></div>
+  </section>
+</div>
+
+<!-- ОТЧЁТ -->
+<div class="page" id="page-report">
+  <section>
+    <input type="number" id="salary" placeholder="ЗП (например 500)">
+    <button class="delete" onclick="clearDay()">🗑 Очистить день</button>
+    <div id="report"></div>
+  </section>
+</div>
+
+<!-- ТОВАРЫ / УСЛУГИ -->
+<div class="page" id="page-products">
+  <section>
+    <h3>➕ / ✏️ Товар</h3>
+    <input type="hidden" id="productId">
+    <input id="productName" placeholder="Название">
+    <input id="price1" type="number" placeholder="Цена 1">
+    <input id="price2" type="number" placeholder="Цена 2 (необязательно)">
+    <button class="add" onclick="saveProduct()">Сохранить товар</button>
+  </section>
+
+  <section>
+    <h3>➕ / ✏️ Доп. услуга</h3>
+    <input type="hidden" id="extraId">
+    <input id="extraName" placeholder="Название">
+    <input id="extraPrice" type="number" placeholder="Цена">
+    <button class="add" onclick="saveExtra()">Сохранить услугу</button>
+  </section>
+
+  <section>
+    <h3>Список товаров</h3>
+    <div id="productsAdmin"></div>
+  </section>
+
+  <section>
+    <h3>Список доп. услуг</h3>
+    <div id="extrasAdmin"></div>
+  </section>
+<section class="products-image"></section>
+<iframe
+  src="https://embed.screenapp.io/app/v/qKMI8y0dZ4?embed=true&autoplay=true"
+  width="100%"
+  height="960"
+  frameborder="0"
+  allow="autoplay"
+  allowfullscreen>
+</iframe>
+
+</div>
+
+<!-- НАВИГАЦИЯ -->
+<div class="bottom-nav">
+  <button onclick="showPage('page-pos')">☕ Касса</button>
+  <button onclick="showPage('page-report')">📊 Отчёт</button>
+  <button onclick="showPage('page-products')">⚙ Товары</button>
+</div>
+
+<script>
+const dateInput=document.getElementById("date");
+dateInput.value=new Date().toISOString().slice(0,10);
+
+let products=JSON.parse(localStorage.getItem("products"))||[];
+let extras=JSON.parse(localStorage.getItem("extras"))||[];
+let sales=JSON.parse(localStorage.getItem("sales"))||[];
+
+let selectedProduct=null;
+let selectedExtras=[];
+
+/* ---------- SAVE ---------- */
+function save(){
+  localStorage.setItem("products",JSON.stringify(products));
+  localStorage.setItem("extras",JSON.stringify(extras));
+  localStorage.setItem("sales",JSON.stringify(sales));
+}
+
+/* ---------- NAV ---------- */
+function showPage(id){
+  document.querySelectorAll(".page").forEach(p=>p.classList.remove("active"));
+  document.getElementById(id).classList.add("active");
+  renderProducts();renderProductsAdmin();renderExtrasAdmin();renderReport();
+}
+
+/* ---------- PRODUCTS ---------- */
+function saveProduct(){
+  const id=productId.value;
+  if(!productName.value||!price1.value)return alert("Введите данные");
+  const prices=price2.value?[+price1.value,+price2.value]:[+price1.value];
+
+  if(id){
+    const p=products.find(p=>p.id==id);
+    p.name=productName.value;p.prices=prices;
+  }else{
+    products.push({id:Date.now(),name:productName.value,prices});
+  }
+
+  productId.value=productName.value=price1.value=price2.value="";
+  save();renderProducts();renderProductsAdmin();
+}
+
+function editProduct(id){
+  const p=products.find(p=>p.id===id);
+  productId.value=p.id;
+  productName.value=p.name;
+  price1.value=p.prices[0];
+  price2.value=p.prices[1]||"";
+}
+
+function deleteProduct(id){
+  if(sales.some(s=>s.productId===id))return alert("Товар уже продавался");
+  products=products.filter(p=>p.id!==id);
+  save();renderProducts();renderProductsAdmin();
+}
+
+/* ---------- EXTRAS ---------- */
+function saveExtra(){
+  const id=extraId.value;
+  if(!extraName.value||!extraPrice.value)return alert("Введите данные");
+
+  if(id){
+    const e=extras.find(e=>e.id==id);
+    e.name=extraName.value;e.price=+extraPrice.value;
+  }else{
+    extras.push({id:Date.now(),name:extraName.value,price:+extraPrice.value});
+  }
+
+  extraId.value=extraName.value=extraPrice.value="";
+  save();renderExtrasAdmin();
+}
+
+function editExtra(id){
+  const e=extras.find(e=>e.id===id);
+  extraId.value=e.id;extraName.value=e.name;extraPrice.value=e.price;
+}
+
+function deleteExtra(id){
+  extras=extras.filter(e=>e.id!==id);
+  save();renderExtrasAdmin();
+}
+
+/* ---------- POS ---------- */
+function renderProducts(filter=""){
+  const g=document.getElementById("products");
+  g.innerHTML="";
+  products.filter(p=>p.name.toLowerCase().includes(filter.toLowerCase()))
+    .forEach(p=>{
+      const b=document.createElement("button");
+      b.className="product-btn";
+      b.innerText=p.name;
+      b.onclick=()=>selectProduct(p);
+      g.appendChild(b);
+    });
+}
+
+function selectProduct(p){
+  selectedProduct=p;selectedExtras=[];
+  renderExtras();renderPrices();
+}
+
+function renderExtras(){
+  const e=document.getElementById("extrasPanel");
+  e.innerHTML="<strong>Доп. услуги</strong>";
+  extras.forEach(x=>{
+    const b=document.createElement("button");
+    b.innerText=`${x.name} +${x.price}`;
+    b.onclick=()=>{selectedExtras.push(x);renderPrices()};
+    e.appendChild(b);
+  });
+}
+
+function renderPrices(){
+  if(!selectedProduct)return;
+  const extraSum=selectedExtras.reduce((s,e)=>s+e.price,0);
+  pricePanel.innerHTML=`<strong>${selectedProduct.name}</strong>`;
+  selectedProduct.prices.forEach(price=>{
+    const total=price+extraSum;
+    pricePanel.innerHTML+=`
+      <button class="cash" onclick="sell(${total},'cash')">${total} грн • 💵</button>
+      <button class="card" onclick="sell(${total},'card')">${total} грн • 💳</button>
+    `;
+  });
+}
+
+function sell(total,payment){
+  sales.push({
+    id:Date.now(),
+    date:dateInput.value,
+    productId:selectedProduct.id,
+    extras:selectedExtras.map(e=>e.name),
+    price:total,
+    payment
+  });
+  save();pricePanel.innerHTML="";renderReport();
+}
+
+/* ---------- REPORT ---------- */
+function deleteSale(id){
+  sales=sales.filter(s=>s.id!==id);
+  save();renderReport();
+}
+
+function clearDay(){
+  if(!confirm("Очистить день?"))return;
+  sales=sales.filter(s=>s.date!==dateInput.value);
+  save();renderReport();
+}
+
+function renderReport(){
+  const r=document.getElementById("report");
+  r.innerHTML="";
+  const day=sales.filter(s=>s.date===dateInput.value);
+  let cash=0,card=0,sum=0;
+  const summary={};
+
+  day.forEach(s=>{
+    const p=products.find(p=>p.id===s.productId);
+    sum+=s.price;
+    s.payment==="cash"?cash+=s.price:card+=s.price;
+
+    if(!summary[p.name])summary[p.name]={qty:0,sum:0};
+    summary[p.name].qty++;summary[p.name].sum+=s.price;
+
+    r.innerHTML+=`
+  <div class="report-line">
+    <span>
+      ${p.name}
+      ${s.extras.length ? " + " + s.extras.join(", ") : ""}
+      • ${s.price} грн
+      • ${s.payment === "cash" ? "💵 Нал" : "💳 Карта"}
+    </span>
+    <button class="delete delete-small" onclick="deleteSale(${s.id})">✖</button>
+  </div>
+`;
+  });
+
+  r.innerHTML+=`<hr><strong>Сводка по товарам</strong>`;
+  Object.keys(summary).forEach(name=>{
+    r.innerHTML+=`
+      <div class="summary-item">
+        ${name} — ${summary[name].qty} шт — ${summary[name].sum} грн
+      </div>
+    `;
+  });
+
+  const base=+salary.value||0;
+  const percent=sum*0.03;
+  r.innerHTML+=`
+    <hr>
+    💵 Нал: ${cash}<br>
+    💳 Карта: ${card}<br>
+    💰 Касса: ${sum}<br>
+    👤 ЗП: ${base}<br>
+    📈 3%: ${percent.toFixed(2)}<br>
+    <strong>Итог ЗП: ${(base+percent).toFixed(2)}</strong>
+  `;
+}
+
+function renderProductsAdmin(){
+  const c=document.getElementById("productsAdmin");
+  c.innerHTML="";
+  products.forEach(p=>{
+    c.innerHTML+=`
+      <div class="report-line">
+        ${p.name}
+        <div class="admin-tools">
+          <button class="edit delete-small" onclick="editProduct(${p.id})">✏️</button>
+          <button class="delete delete-small" onclick="deleteProduct(${p.id})">✖</button>
+        </div>
+      </div>
+    `;
+  });
+}
+
+function renderExtrasAdmin(){
+  const c=document.getElementById("extrasAdmin");
+  c.innerHTML="";
+  extras.forEach(e=>{
+    c.innerHTML+=`
+      <div class="report-line">
+        ${e.name} +${e.price}
+        <div class="admin-tools">
+          <button class="edit delete-small" onclick="editExtra(${e.id})">✏️</button>
+          <button class="delete delete-small" onclick="deleteExtra(${e.id})">✖</button>
+        </div>
+      </div>
+    `;
+  });
+}
+
+/* INIT */
+renderProducts();renderProductsAdmin();renderExtrasAdmin();renderReport();
+</script>
+
+</body>
+</html>
